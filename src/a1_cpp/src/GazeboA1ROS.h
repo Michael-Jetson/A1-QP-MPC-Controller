@@ -44,14 +44,16 @@
 
 #include "utils/filter.hpp"
 
+// Gazebo1下的四足控制类，面向A1机器人，负责观测电机状态、规划等
+// 会集成各个部件，构成一个完整的四足机器人控制器
 class GazeboA1ROS {
 public:
     GazeboA1ROS(ros::NodeHandle &_nh);
-
+    // 计算当前支撑相腿部的期望地面作用力
     bool update_foot_forces_grf(double dt);
-
+    // 主更新函数，包含多个控制子任务
     bool main_update(double t, double dt);
-
+    // 发送力矩控制指令
     bool send_cmd();
 
     // callback functions
@@ -157,6 +159,7 @@ private:
     A1BasicEKF a1_estimate;
 
     // filters
+    // 平滑 IMU 加速度、角速度以及四元数分量，减小传感器噪声和仿真抖动对估计与控制的影响
     MovingWindowFilter acc_x;
     MovingWindowFilter acc_y;
     MovingWindowFilter acc_z;

@@ -1,9 +1,16 @@
 # we build this docker based on a docker with ros already installed
 FROM ros:noetic-perception-focal
-# fixed a key issue using the method mentioned in https://github.com/PRBonn/bonnetal/commit/0ab883b8356954c3e57a07a73c30bbac8f035a05
+# fixed a key issue using the method mentioned in https://github.com/PRBonn/bonnetal/commit/
+RUN cat > /etc/apt/sources.list <<EOF
+deb http://mirrors.aliyun.com/ubuntu/ focal main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ focal-updates main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ focal-backports main restricted universe multiverse
+deb http://mirrors.aliyun.com/ubuntu/ focal-security main restricted universe multiverse
+EOF
+RUN  apt update 
 RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list' && \
-  apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 && \
-  apt update 
+  apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 
+RUN  apt update 
 
 LABEL maintainer="shuoyang@andrew.cmu.edu"
 ENV REFRESH_AT 2022-05-31
@@ -34,7 +41,7 @@ RUN   if [ "x$(nproc)" = "x1" ] ; then export USE_PROC=1 ; \
 RUN apt-get update && \
     apt-get install -y python3.8
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 1
-RUN curl https://bootstrap.pypa.io/pip/get-pip.py -o get-pip.py
+RUN curl https://bootstrap.pypa.io/pip/3.8/get-pip.py -o get-pip.py
 RUN python get-pip.py
 RUN rm get-pip.py
 RUN pip --version
@@ -46,6 +53,16 @@ RUN pip --version
 # change timezone (this is very important otherwise many ROS topic time will be strange)
 ENV TZ=America/New_York
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# install cmake
+WORKDIR /tmp
+RUN apt-get install wget
+RUN wget https://cmake.org/files/v3.22/cmake-3.22.1.tar.gz
+RUN tar xzf cmake-3.22.1.tar.gz
+RUN cd /tmp/cmake-3.22.1
+RUN /tmp/cmake-3.22.1/configure
+RUN make -j8
+RUN make install
 
 # add OSQP 
 # follow https://osqp.org/docs/get_started/sources.html#build-from-sources to install OSQP from sources
@@ -74,7 +91,7 @@ RUN make install
 
 # lcm dependencies, notice ContactImplicitMPC.jl needs 2.68.3, we try 2.64.6 first
 RUN apt-cache madison libglib2.0-dev
-RUN apt-get install -y libglib2.0-0=2.64.6-1~ubuntu20.04.4 libglib2.0-dev=2.64.6-1~ubuntu20.04.4
+RUN apt-get install -y libglib2.0-0 libglib2.0-dev
 # WORKDIR /tmp
 # RUN wget http://archive.ubuntu.com/ubuntu/pool/main/g/glib2.0/libglib2.0-0_2.68.4-1ubuntu1_amd64.deb
 # RUN dpkg -i libglib2.0-0_2.68.4-1ubuntu1_amd64.deb

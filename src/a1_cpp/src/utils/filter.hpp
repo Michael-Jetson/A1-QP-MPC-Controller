@@ -11,6 +11,7 @@
 // A stable O(1) moving filter for incoming data streams. Implements the
 // Neumaier's algorithm to calculate the moving window average,
 // which is numerically stable.
+// 滑动窗口滤波器，使用Neumaier算法保证数值稳定性
 class MovingWindowFilter {
  public:
 

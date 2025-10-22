@@ -16,7 +16,7 @@ public:
     A1CtrlStates() {
         reset();
     }
-
+    // 重置所有变量
     void reset() {
         stance_leg_control_type = 1;
         use_terrain_adapt = 1;
@@ -132,6 +132,7 @@ public:
         power_level = 5;
     }
 
+    // 使用ROS服务器参数重置所有变量
     void resetFromROSParam(ros::NodeHandle &_nh) {
         _nh.param("stance_leg_control_type", stance_leg_control_type, 1);
         _nh.param("use_terrain_adapt", use_terrain_adapt, 1);
