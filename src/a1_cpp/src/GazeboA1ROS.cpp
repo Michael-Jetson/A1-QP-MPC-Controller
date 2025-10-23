@@ -129,13 +129,6 @@ bool GazeboA1ROS::main_update(double t, double dt) {
         joy_cmd_body_height = JOY_CMD_BODY_HEIGHT_MIN;
     }
 
-//    joy_cmd_body_height += joy_cmd_velz * dt;
-//    if (joy_cmd_body_height >= JOY_CMD_BODY_HEIGHT_MAX + a1_ctrl_states.walking_surface_height) {
-//        joy_cmd_body_height = JOY_CMD_BODY_HEIGHT_MAX + a1_ctrl_states.walking_surface_height;
-//    }
-//    if (joy_cmd_body_height <= JOY_CMD_BODY_HEIGHT_MIN + a1_ctrl_states.walking_surface_height) {
-//        joy_cmd_body_height = JOY_CMD_BODY_HEIGHT_MIN + a1_ctrl_states.walking_surface_height;
-//    }
 
     prev_joy_cmd_ctrl_state = joy_cmd_ctrl_state;
 

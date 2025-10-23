@@ -325,6 +325,7 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
     Eigen::Vector3d euler_error = state.root_euler_d - state.root_euler;
 
     // limit euler error to pi/2
+    // 约束欧拉角误差的绝对值不超过180度
     if (euler_error(2) > 3.1415926 * 1.5) {
         euler_error(2) = state.root_euler_d(2) - 3.1415926 * 2 - state.root_euler(2);
     } else if (euler_error(2) < -3.1415926 * 1.5) {
@@ -332,12 +333,17 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
     }
 
     // only do terrain adaptation in MPC
+    // 仅在MPC中使用地形自适应
     if (state.stance_leg_control_type == 1) {
+        // 通过足端触地估计出地面法向量
         Eigen::Vector3d surf_coef = compute_walking_surface(state);
+        //水平面法向量 [0,0,1]，认为地面估计法向量与水平法向量的夹角为坡度角
+        // 但是这里计算出的坡度角为正，需要判断是上坡还是下坡
         Eigen::Vector3d flat_ground_coef;
         flat_ground_coef << 0, 0, 1;
         double terrain_angle = 0;
         // only record terrain angle when the body is high
+        // 对坡度角进行计算和平滑
         if (state.root_pos[2] > 0.1) {
             terrain_angle = terrain_angle_filter.CalculateAverage(Utils::cal_dihedral_angle(flat_ground_coef, surf_coef));
         } else {
@@ -352,6 +358,7 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
         }
 
         // FL, FR, RL, RR
+        // 比较前腿与后腿最近接触的高度差判断是上坡下坡，然后决定期望欧拉角中俯仰角的角度
         double F_R_diff = state.foot_pos_recent_contact(2, 0) + state.foot_pos_recent_contact(2, 1) - state.foot_pos_recent_contact(2, 2) -
                         state.foot_pos_recent_contact(2, 3);
 
@@ -363,7 +370,7 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
             }
         }
 
-
+        // 封装消息并且发送
         std_msgs::Float64 terrain_angle_msg;
         terrain_angle_msg.data = terrain_angle * (180 / 3.1415926);
         pub_terrain_angle.publish(terrain_angle_msg); // publish in deg
@@ -375,10 +382,15 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
         state.terrain_pitch_angle = terrain_angle;
     }
     if (state.stance_leg_control_type == 0) { // 0: QP
+        // 对应论文：MIT Cheetah 3: Design and Control of a Robust, Dynamic Quadruped Robot
+        // 对应C部分
         // desired acc in world frame
         root_acc.setZero();
-        root_acc.block<3, 1>(0, 0) = state.kp_linear.cwiseProduct(state.root_pos_d - state.root_pos);
+        // 下面部分是使用PD方法计算得出期望的加速度和角加速度，cwiseProduct表示逐元素相乘，对应论文公式2
 
+        //三个方向上的 K_p*(P_d-P)
+        root_acc.block<3, 1>(0, 0) = state.kp_linear.cwiseProduct(state.root_pos_d - state.root_pos);
+        //三个方向上的 K_d*(V_d-V)
         root_acc.block<3, 1>(0, 0) += state.root_rot_mat * state.kd_linear.cwiseProduct(
                 state.root_lin_vel_d - state.root_rot_mat.transpose() * state.root_lin_vel);
 
@@ -387,16 +399,19 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
         root_acc.block<3, 1>(3, 0) += state.kd_angular.cwiseProduct(
                 state.root_ang_vel_d - state.root_rot_mat.transpose() * state.root_ang_vel);
 
-        // add gravity
+        // add gravity，考虑重力影响
         root_acc(2) += state.robot_mass * 9.8;
 
         // Create inverse inertia matrix
+        // 论文中的公式1，下面在构建A矩阵
         Eigen::Matrix<double, 6, DIM_GRF> inertia_inv;
         for (int i = 0; i < NUM_LEG; ++i) {
             inertia_inv.block<3, 3>(0, i * 3).setIdentity();
             // TODO: confirm this should be root_rot_mat instead of root_rot_mat
             inertia_inv.block<3, 3>(3, i * 3) = state.root_rot_mat_z.transpose() * Utils::skew(state.foot_pos_abs.block<3, 1>(0, i));
         }
+
+        // 构建Hessian矩阵
         Eigen::Matrix<double, DIM_GRF, DIM_GRF> dense_hessian;
         dense_hessian.setIdentity();
         dense_hessian *= R;
@@ -406,6 +421,7 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
         gradient.block<3 * NUM_LEG, 1>(0, 0) = -inertia_inv.transpose() * Q * root_acc;
 
         // adjust bounds according to contact flag
+        // 根据触地检测，构建上下界
         for (int i = 0; i < NUM_LEG; ++i) {
             double c_flag = state.contacts[i] ? 1.0 : 0.0;
             lowerBound(i) = c_flag * F_min;
@@ -443,7 +459,7 @@ Eigen::Matrix<double, 3, NUM_LEG> A1RobotControl::compute_grf(A1CtrlStates &stat
             foot_forces_grf.block<3, 1>(0, i) = state.root_rot_mat.transpose() * QPSolution.segment<3>(i * 3);
         }
 
-    } else if (state.stance_leg_control_type == 1) { // 1: MPC
+    } else if (state.stance_leg_control_type == 1) { // 1: MPC，对应论文中的D部分
         ConvexMpc mpc_solver = ConvexMpc(state.q_weights, state.r_weights);
         mpc_solver.reset();
 

@@ -51,7 +51,7 @@ public:
     GazeboA1ROS(ros::NodeHandle &_nh);
     // 计算当前支撑相腿部的期望地面作用力
     bool update_foot_forces_grf(double dt);
-    // 主更新函数，包含多个控制子任务
+    // 主更新函数，包含多个控制子任务：有约束期望高度计算、期望状态更新
     bool main_update(double t, double dt);
     // 发送力矩控制指令
     bool send_cmd();

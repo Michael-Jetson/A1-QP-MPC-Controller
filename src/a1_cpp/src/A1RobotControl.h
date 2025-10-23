@@ -47,9 +47,10 @@ public:
 
 private:
     BezierUtils bezierUtils[NUM_LEG];
-
+    // 平移和旋转的空间加速度，前三维平移
     Eigen::Matrix<double, 6, 1> root_acc;
     // allocate the problem weight matrices
+    // Q对应的是QP中的权重矩阵
     Eigen::DiagonalMatrix<double, 6> Q;
     double R;
     // ground friction coefficient
